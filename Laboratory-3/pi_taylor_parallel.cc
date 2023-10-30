@@ -9,6 +9,12 @@
 
 using my_float = long double;
 
+typedef struct {
+    size_t cantidad_extra;
+    size_t cantidad_normal;
+    size_t ultimo_extra;
+} chunk_info;
+
 void
 pi_taylor_chunk(std::vector<my_float> &output,
         size_t thread_id, size_t start_step, size_t stop_step) {
@@ -44,10 +50,9 @@ int main(int argc, const char *argv[]) {
     auto threads = ret_pair.second;
 
     my_float pi;
-
+	std::vector<my_float> results(threads); //inicializamos un vector con tantos elementos como threads
     // please complete missing parts
-
-
+	
     std::cout << "For " << steps << ", pi value: "
         << std::setprecision(std::numeric_limits<long double>::digits10 + 1)
         << pi << std::endl;
