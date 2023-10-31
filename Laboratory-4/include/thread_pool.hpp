@@ -9,38 +9,53 @@
 
 class thread_pool
 {
+  std::atomic<bool> _done;
+  size_t _thread_count;
+  threadsafe_queue<std::function<void()>> _work_queue;
+  std::vector<std::thread> _threads;
   join_threads _joiner;
-
+  
   using task_type = void();
 
   void worker_thread()
   {
-
+    while(!_done){
+      std::function<task_type> task;
+      if(_work_queue.try_pop(task)){
+        task();
+      } else {
+        std::this_thread::yield();
+      }
+    }
   }
 
   public:
   thread_pool(size_t num_threads = std::thread::hardware_concurrency())
-    : // please complete
+    : _done(false), _thread_count(num_threads), _joiner(_threads)
   {
-      // complete
-
+      for(size_t i = 0; i < _thread_count; ++i){ //El pre-incremento es porque si tenemos 10 threads, queremos 9 workers + el principal. Por lo que _treads tiene 9 elementos dentro
+        _threads.push_back(std::thread(&thread_pool::worker_thread, this));
+      }
   }
 
-  ~thread_pool()
+  ~thread_pool() //Antes del cuerpo, llama al destructor de sus elementos miembro
   {
-    wait();
+     wait();
   }
 
   void wait()
   {
       // wait for completion
-
+      while(!_work_queue.empty() && !_done){
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000)); 
+      }
+      _done = true;
       // active waiting
   }
 
   template<typename F>
     void submit(F f)
     {
-	// please complete
+      _work_queue.push(std::function<task_type>(f));
     }
 };

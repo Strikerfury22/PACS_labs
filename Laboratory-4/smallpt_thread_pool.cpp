@@ -201,6 +201,18 @@ void render(int w, int h, int samps, Ray cam,
     }
 }
 
+//ANADIDO
+// Una task que ejecuta una fila entera.
+/*void multiRender(int w, int h, int samps, Ray cam,
+            Vec cx, Vec cy, Vec *c, int row){
+    for (int i = 0; i < w; i++){ //Iteramos sobre las columnas
+        Region reg(i, i+1, row, row+1);
+        render(w,h,samps,cam,cx,cy,c,reg);
+    }
+
+}*/
+//FIN ANADIDO
+
 std::pair<size_t, size_t>
 usage(int argc, char *argv[], size_t w, size_t h) {
     // read the number of divisions from the command line
@@ -244,14 +256,20 @@ int main(int argc, char *argv[]){
     auto start = std::chrono::steady_clock::now();
 
     auto *c_ptr = c.get(); // raw pointer to Vector c
-
-    // create a thread pool
-
-    // launch the tasks
-
-
+    {
+        // create a thread pool
+        thread_pool our_pool();
+        // launch the tasks
+        for (int i = 0; i < w; i++){
+            for (int j = 0; j < h; j++){
+                Region reg(i, i+1, j, j+1);
+                render(w,h,samps,cam,cx,cy,c_ptr,reg);
+            }
+        } //Nivel pixel.
+    }
     // wait for completion
     auto stop = std::chrono::steady_clock::now();
+
     std::cout << "Execution time: " <<
       std::chrono::duration_cast<std::chrono::milliseconds>(stop-start).count() << " ms." << std::endl;
 
