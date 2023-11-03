@@ -12,10 +12,10 @@ my_float pi_taylor(size_t steps) {
 	for(size_t n = 0; n < steps; n++){
 		sign = -sign;
 		result += sign / static_cast<my_float>(2 * n + 1);
-		if (n > steps-5) {
+		/*if (n > steps-5) {
 			std::cout << result << std::endl;
 			std::cout << sign << std::endl;
-		}
+		}*/
 	}
 	result = result * 4;
     return result;
