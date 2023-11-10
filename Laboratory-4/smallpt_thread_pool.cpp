@@ -245,8 +245,8 @@ void write_output_file(const std::unique_ptr<Vec[]>& c, size_t w, size_t h)
 
 int main(int argc, char *argv[]){
     size_t w=1024, h=768, samps = 4; // # samples
-    std::array<int, 11> w_divisors = {1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024};
-    std::array<int, 18> h_divisors = {1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 768};
+    //std::array<int, 11> w_divisors = {1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024};
+    //std::array<int, 18> h_divisors = {1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 768};
     
     Ray cam(Vec(50,52,295.6), Vec(0,-0.042612,-1).norm()); // cam pos, dir
     Vec cx=Vec(w*.5135/h), cy=(cx%cam.d).norm()*.5135;
@@ -287,6 +287,7 @@ int main(int argc, char *argv[]){
                 }
             }*/
             /*Test all sizes*/
+            /*
             std::vector<std::pair<double, std::pair<int, int>>> results;
             for (size_t i = 0; i < w_divisors.size(); i++){
                 for (size_t j = 0; j < h_divisors.size(); j++){
@@ -299,6 +300,7 @@ int main(int argc, char *argv[]){
                     auto stop = std::chrono::steady_clock::now();
                     auto duration =  std::chrono::duration_cast<std::chrono::milliseconds>(stop-start).count();
                     results.push_back({duration, {w_divisors[i], h_divisors[j]}});
+                    std::cout << "Iteration processed";
                 }
                 }
             } 
@@ -311,6 +313,7 @@ int main(int argc, char *argv[]){
                 std::cout << "Time: " << result.first
                     << ", Elements: (" << result.second.first << ", " << result.second.second << ")\n";
             }
+            */
         }
         auto stop = std::chrono::steady_clock::now();
         std::cout << "Execution time: " <<
