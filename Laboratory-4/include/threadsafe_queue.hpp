@@ -39,7 +39,7 @@ class threadsafe_queue
     bool try_pop(T& value)
     {
 	    std::lock_guard<std::mutex> lk(_m);
-        if (!data_queue.empty()){ //if it's not empty
+        if (!_data_queue.empty()){ //if it's not empty
             value = _data_queue.front(); //extract value
             _data_queue.pop(); //pop value
             return true; 
