@@ -26,6 +26,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <algorithm>
 
 #include <thread_pool.hpp>
 
@@ -224,8 +225,8 @@ usage(int argc, char *argv[], size_t w, size_t h) {
     size_t w_div = argc == 1 ? 2 : std::stol(argv[1]);
     size_t h_div = argc == 1 ? 2 : std::stol(argv[2]);
 
-    if (((w/w_div) < 4) || ((h/h_div) < 4)){
-        std::cerr << "The minimum region width and height is 4" << std::endl;
+    if (((w/w_div) < 1) || ((h/h_div) < 1)){
+        std::cerr << "The minimum region width and height is 1" << std::endl; //we've changed this so we can test with rows and columns. Originally 4
         exit(1);
     }
     return std::make_pair(w_div, h_div);
@@ -243,35 +244,106 @@ void write_output_file(const std::unique_ptr<Vec[]>& c, size_t w, size_t h)
 }
 
 int main(int argc, char *argv[]){
-    size_t w=1024, h=768, samps = 2; // # samples
-
+    size_t w=1024, h=768, samps = 4; // # samples
+    std::array<int, 11> w_divisors = {1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024};
+    std::array<int, 18> h_divisors = {1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 768};
+    
     Ray cam(Vec(50,52,295.6), Vec(0,-0.042612,-1).norm()); // cam pos, dir
     Vec cx=Vec(w*.5135/h), cy=(cx%cam.d).norm()*.5135;
     std::unique_ptr<Vec[]> c{new Vec[w*h]};
-
-    auto p = usage(argc, argv, w, h);
-    auto w_div = p.first;
-    auto h_div = p.second;
-
-    auto start = std::chrono::steady_clock::now();
-
-    auto *c_ptr = c.get(); // raw pointer to Vector c
-    {
-        // create a thread pool
-        thread_pool our_pool();
-        // launch the tasks
-        for (int i = 0; i < w; i++){
-            for (int j = 0; j < h; j++){
-                Region reg(i, i+1, j, j+1);
+    if (argc == 1) {
+        std::cout << "No arguments given. Proceeding with basic execution" << std::endl;
+        auto start = std::chrono::steady_clock::now();
+        auto *c_ptr = c.get(); // raw pointer to Vector c
+        {
+            // create a thread pool
+            thread_pool our_pool();
+            // launch the tasks
+            /*Pixel by pixel*/
+            for (size_t i = 0; i < w; i++){
+                for (size_t j = 0; j < h; j++){
+                    Region reg(i, i+1, j, j+1);
+                    render(w,h,samps,cam,cx,cy,c_ptr,reg);
+                }
+            } 
+            
+            /*Row by Row*/
+            /*for (size_t j = 0; j < h; j++){
+                Region reg(0, w, j, j+1);
                 render(w,h,samps,cam,cx,cy,c_ptr,reg);
+            }*/
+            /*Column by Column*/
+            /*for (size_t i = 0; i < w; i++){
+                Region reg(i, i+1, 0, h);
+                render(w,h,samps,cam,cx,cy,c_ptr,reg);
+            }*/
+            /*Square*/
+            //mcd (1024, 768) = 256
+            /*size_t square_shape = 256;
+            for (size_t i = 0; i < w; i += square_shape){
+                for (size_t j = 0; j < h; j += square_shape){
+                    Region reg(i, i+square_shape, j, j+square_shape);
+                    render(w,h,samps,cam,cx,cy,c_ptr,reg);
+                }
+            }*/
+            /*Test all sizes*/
+            std::vector<std::pair<double, std::pair<int, int>>> results;
+            for (size_t i = 0; i < w_divisors.size(); i++){
+                for (size_t j = 0; j < h_divisors.size(); j++){
+                    auto start = std::chrono::steady_clock::now();
+                    for (size_t k = 0; k < w; k += w_divisors[i]){
+                       for (size_t l = 0; l < h; l += h_divisors[j]){
+                        Region reg(k, k + w_divisors[i], l, l + h_divisors[j]);
+                        render(w,h,samps,cam,cx,cy,c_ptr,reg);
+                    }
+                    auto stop = std::chrono::steady_clock::now();
+                    auto duration =  std::chrono::duration_cast<std::chrono::milliseconds>(stop-start).count();
+                    results.push_back({duration, {w_divisors[i], h_divisors[j]}});
+                }
+                }
+            } 
+            std::sort(results.begin(), results.end(), [](const std::pair<double, std::pair<int, int>>& a, const std::pair<double, std::pair<int, int>>& b) {
+                  return a.first < b.first;
+              });
+            
+            std::cout << "Resultados ordered by time:\n";
+            for (const auto& result : results) {
+                std::cout << "Time: " << result.first
+                    << ", Elements: (" << result.second.first << ", " << result.second.second << ")\n";
             }
-        } //Nivel pixel.
+        }
+        auto stop = std::chrono::steady_clock::now();
+        std::cout << "Execution time: " <<
+            std::chrono::duration_cast<std::chrono::milliseconds>(stop-start).count() << " ms." << std::endl;
+    } else if (argc == 3) {
+        std::cout << "Width and Height introduced. Proceeding with rectangle threading" << std::endl;
+        auto p = usage(argc, argv, w, h);
+        auto w_div = p.first;
+        auto h_div = p.second;
+        auto start = std::chrono::steady_clock::now();
+
+        auto *c_ptr = c.get(); // raw pointer to Vector c
+        {
+            // create a thread pool
+            thread_pool our_pool();
+            // launch the tasks
+            /*Rectangles*/
+            if (w_div != 0 && h_div != 0){
+                for (size_t i = 0; i < w; i += w_div){
+                    for (size_t j = 0; j < h; j += h_div){
+                        Region reg(i, i + w_div, j, j + h_div);
+                        render(w,h,samps,cam,cx,cy,c_ptr,reg);
+                    }
+                }
+            }
+        }
+        auto stop = std::chrono::steady_clock::now();
+        std::cout << "Execution time: " <<
+            std::chrono::duration_cast<std::chrono::milliseconds>(stop-start).count() << " ms." << std::endl;
+    } else {
+      std::cout << "Bad Usage: Enter no arguments or 2 arguments" << std::endl;
     }
+
     // wait for completion
-    auto stop = std::chrono::steady_clock::now();
-
-    std::cout << "Execution time: " <<
-      std::chrono::duration_cast<std::chrono::milliseconds>(stop-start).count() << " ms." << std::endl;
-
     write_output_file(c, w, h);
 }
