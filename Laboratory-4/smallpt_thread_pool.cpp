@@ -202,22 +202,10 @@ void render(int w, int h, int samps, Ray cam,
     }
 }
 
-//ANADIDO
-// Una task que ejecuta una fila entera.
-/*void multiRender(int w, int h, int samps, Ray cam,
-            Vec cx, Vec cy, Vec *c, int row){
-    for (int i = 0; i < w; i++){ //Iteramos sobre las columnas
-        Region reg(i, i+1, row, row+1);
-        render(w,h,samps,cam,cx,cy,c,reg);
-    }
-
-}*/
-//FIN ANADIDO
-
 std::pair<size_t, size_t>
 usage(int argc, char *argv[], size_t w, size_t h) {
     // read the number of divisions from the command line
-    std::cerr << "Usage: no arguments -> h_div = 2, w_div = 2. Pixel by Pixel, introduce h_div = h, w_div = w" << std::endl;
+    //std::cerr << "Usage: no arguments -> h_div = 2, w_div = 2. Pixel by Pixel, introduce h_div = h, w_div = w" << std::endl;
     if (!((argc == 1) || (argc == 3))) {
         std::cerr << "Invalid syntax: smallpt_thread_pool <width_divisions> <height_divisions>" << std::endl;
         exit(1);
@@ -246,8 +234,8 @@ void write_output_file(const std::unique_ptr<Vec[]>& c, size_t w, size_t h)
 
 int main(int argc, char *argv[]){
     size_t w=1024, h=768, samps = 4; // # samples
-    std::array<int, 11> w_divisors = {1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024};
-    std::array<int, 18> h_divisors = {1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 768};
+    //std::array<int, 11> w_divisors = {1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024};
+    //std::array<int, 18> h_divisors = {1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 768};
     
     Ray cam(Vec(50,52,295.6), Vec(0,-0.042612,-1).norm()); // cam pos, dir
     Vec cx=Vec(w*.5135/h), cy=(cx%cam.d).norm()*.5135;
@@ -258,29 +246,29 @@ int main(int argc, char *argv[]){
     auto h_div = p.second;
     const auto y_height = h / h_div;
     const auto x_width = w / w_div;
-    auto start1 = std::chrono::steady_clock::now();
+    auto start = std::chrono::steady_clock::now();
     auto *c_ptr = c.get(); // raw pointer to Vector c
-    std::cout << "w_div " << w_div << " h_div " << h_div << " y_height " << y_height << " x_width " << x_width << std::endl;
+    //std::cout << "w_div " << w_div << " h_div " << h_div << " y_height " << y_height << " x_width " << x_width << std::endl;
     {
         // create a thread pool
-        // thread_pool our_pool;
+        thread_pool our_pool; 
         // launch the tasks
         /*Pixel by pixel*/
-        /*for (size_t i = 0; i < w_div; ++i){
-            for (size_t j = 0; j < h_div; ++j){
+        for (size_t i = 0; i < h_div; ++i){
+            for (size_t j = 0; j < w_div; ++j){
                 size_t y0 = i * y_height; 
                 size_t y1 = i == h_div - 1 ? h : y0 + y_height;
                 size_t x0 = j * x_width;    
                 size_t x1 = j == w_div - 1 ? w : x0 + x_width;
-                std::cout << "x0 " << x0 << " x1 " << x1 << " y0 " << y0 << " y1 " << y1 << std::endl;
+                //std::cout << "x0 " << x0 << " x1 " << x1 << " y0 " << y0 << " y1 " << y1 << std::endl;
                 Region reg(x0, x1, y0, y1);
                 our_pool.submit([=] {render(w,h,samps,cam,cx,cy,c_ptr,reg); });
                 //render(w,h,samps,cam,cx,cy,c_ptr,reg);
             }
-        }*/ 
+        } 
         //our_pool.wait();
         /*Test all sizes*/
-        thread_pool our_pool;
+        /*thread_pool our_pool;
         std::vector<std::pair<double, std::pair<int, int>>> results;
         for (size_t i = 0; i < w_divisors.size(); i++){
             for (size_t j = 0; j < h_divisors.size(); j++){
@@ -316,11 +304,12 @@ int main(int argc, char *argv[]){
         for (const auto& result : results) {
             std::cout << "Time: " << result.first
                 << ", Elements: (" << result.second.first << ", " << result.second.second << ")\n";
-        }
+        }*/
     }
-    auto stop2 = std::chrono::steady_clock::now();
-    std::cout << "Execution time: " <<
-        std::chrono::duration_cast<std::chrono::milliseconds>(stop2-start1).count() << " ms." << std::endl;
+    auto stop = std::chrono::steady_clock::now();
+    std::cout <<
+        //std::chrono::duration_cast<std::chrono::milliseconds>(stop-start).count() << " " << w_div << " " << h_div << " ms." << std::endl;
+    std::chrono::duration_cast<std::chrono::milliseconds>(stop-start).count() << ",";
     // wait for completion
     write_output_file(c, w, h);
 }
