@@ -252,9 +252,9 @@ int main(int argc, char *argv[]){
     //std::cout << "w_div " << w_div << " h_div " << h_div << " y_height " << y_height << " x_width " << x_width << std::endl;
     {
         // create a thread pool
-        // thread_pool our_pool; 
+        /*thread_pool our_pool; 
         // launch the tasks
-        /*for (size_t i = 0; i < h_div; ++i){
+        for (size_t i = 0; i < h_div; ++i){
             for (size_t j = 0; j < w_div; ++j){
                 size_t y0 = i * y_height; 
                 size_t y1 = i == h_div - 1 ? h : y0 + y_height;
@@ -275,18 +275,21 @@ int main(int argc, char *argv[]){
                 auto start = std::chrono::steady_clock::now();
                 std::cout << "w_div " << w_divisors[i] << " h_div " << h_divisors[j] << std::endl;
                 {
+                    auto y_height = h / h_divisors[j];
+                    auto x_width = w / w_divisors[i];
                     thread_pool our_pool;
-                    for (size_t k = 0; k < w; k += w_divisors[i]){
-                        for (size_t l = 0; l < h; l += h_divisors[j]){
-                        size_t y0 = l; 
-                        size_t y1 = l + h_divisors[j];
-                        size_t x0 = k;    
-                        size_t x1 = k + w_divisors[i];
-                        //std::cout << "x0 " << x0 << " x1 " << x1 << " y0 " << y0 << " y1 " << y1 << std::endl;
-                        Region reg(x0, x1, y0, y1);
-                        our_pool.submit([=] {render(w,h,samps,cam,cx,cy,c_ptr,reg); });
+                    for (int k = 0; k < h_divisors[j]; ++k){
+                        for (int l = 0; l < w_divisors[i]; ++l){
+                            size_t y0 = k * y_height; 
+                            size_t y1 = k == h_divisors[j] - 1 ? h : y0 + y_height;
+                            size_t x0 = l * x_width;    
+                            size_t x1 = l == w_divisors[i] - 1 ? w : x0 + x_width;
+                            //std::cout << "x0 " << x0 << " x1 " << x1 << " y0 " << y0 << " y1 " << y1 << std::endl;
+                            Region reg(x0, x1, y0, y1);
+                            our_pool.submit([=] {render(w,h,samps,cam,cx,cy,c_ptr,reg); });
+                            //render(w,h,samps,cam,cx,cy,c_ptr,reg);
                         }
-                    }
+                    }   
                     our_pool.wait();
                 }
                 auto stop = std::chrono::steady_clock::now();
