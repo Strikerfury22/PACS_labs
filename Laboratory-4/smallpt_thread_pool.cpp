@@ -26,6 +26,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <algorithm>
 
 #include <thread_pool.hpp>
 
@@ -201,21 +202,10 @@ void render(int w, int h, int samps, Ray cam,
     }
 }
 
-//ANADIDO
-// Una task que ejecuta una fila entera.
-/*void multiRender(int w, int h, int samps, Ray cam,
-            Vec cx, Vec cy, Vec *c, int row){
-    for (int i = 0; i < w; i++){ //Iteramos sobre las columnas
-        Region reg(i, i+1, row, row+1);
-        render(w,h,samps,cam,cx,cy,c,reg);
-    }
-
-}*/
-//FIN ANADIDO
-
 std::pair<size_t, size_t>
 usage(int argc, char *argv[], size_t w, size_t h) {
     // read the number of divisions from the command line
+    //std::cerr << "Usage: no arguments -> h_div = 2, w_div = 2. Pixel by Pixel, introduce h_div = h, w_div = w" << std::endl;
     if (!((argc == 1) || (argc == 3))) {
         std::cerr << "Invalid syntax: smallpt_thread_pool <width_divisions> <height_divisions>" << std::endl;
         exit(1);
@@ -224,8 +214,8 @@ usage(int argc, char *argv[], size_t w, size_t h) {
     size_t w_div = argc == 1 ? 2 : std::stol(argv[1]);
     size_t h_div = argc == 1 ? 2 : std::stol(argv[2]);
 
-    if (((w/w_div) < 4) || ((h/h_div) < 4)){
-        std::cerr << "The minimum region width and height is 4" << std::endl;
+    if (((w/w_div) < 1) || ((h/h_div) < 1)){
+        std::cerr << "The minimum region width and height is 1" << std::endl; //we've changed this so we can test with rows and columns. Originally 4
         exit(1);
     }
     return std::make_pair(w_div, h_div);
@@ -243,35 +233,83 @@ void write_output_file(const std::unique_ptr<Vec[]>& c, size_t w, size_t h)
 }
 
 int main(int argc, char *argv[]){
-    size_t w=1024, h=768, samps = 2; // # samples
-
+    size_t w=1024, h=768, samps = 4; // # samples
+    //std::array<int, 11> w_divisors = {1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024};
+    //std::array<int, 18> h_divisors = {1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 768};
+    
     Ray cam(Vec(50,52,295.6), Vec(0,-0.042612,-1).norm()); // cam pos, dir
     Vec cx=Vec(w*.5135/h), cy=(cx%cam.d).norm()*.5135;
     std::unique_ptr<Vec[]> c{new Vec[w*h]};
-
+    
     auto p = usage(argc, argv, w, h);
     auto w_div = p.first;
     auto h_div = p.second;
-
+    const auto y_height = h / h_div;
+    const auto x_width = w / w_div;
     auto start = std::chrono::steady_clock::now();
-
     auto *c_ptr = c.get(); // raw pointer to Vector c
+    //std::cout << "w_div " << w_div << " h_div " << h_div << " y_height " << y_height << " x_width " << x_width << std::endl;
     {
         // create a thread pool
-        thread_pool our_pool();
+        thread_pool our_pool; 
         // launch the tasks
-        for (int i = 0; i < w; i++){
-            for (int j = 0; j < h; j++){
-                Region reg(i, i+1, j, j+1);
-                render(w,h,samps,cam,cx,cy,c_ptr,reg);
+        /*Pixel by pixel*/
+        for (size_t i = 0; i < h_div; ++i){
+            for (size_t j = 0; j < w_div; ++j){
+                size_t y0 = i * y_height; 
+                size_t y1 = i == h_div - 1 ? h : y0 + y_height;
+                size_t x0 = j * x_width;    
+                size_t x1 = j == w_div - 1 ? w : x0 + x_width;
+                //std::cout << "x0 " << x0 << " x1 " << x1 << " y0 " << y0 << " y1 " << y1 << std::endl;
+                Region reg(x0, x1, y0, y1);
+                our_pool.submit([=] {render(w,h,samps,cam,cx,cy,c_ptr,reg); });
+                //render(w,h,samps,cam,cx,cy,c_ptr,reg);
             }
-        } //Nivel pixel.
+        } 
+        //our_pool.wait();
+        /*Test all sizes*/
+        /*thread_pool our_pool;
+        std::vector<std::pair<double, std::pair<int, int>>> results;
+        for (size_t i = 0; i < w_divisors.size(); i++){
+            for (size_t j = 0; j < h_divisors.size(); j++){
+                auto start = std::chrono::steady_clock::now();
+                std::cout << "w_div " << w_divisors[i] << " h_div " << h_divisors[j] << std::endl;
+                //thread_pool our_pool;
+                for (size_t k = 0; k < w; k += w_divisors[i]){
+                    for (size_t l = 0; l < h; l += h_divisors[j]){
+                    size_t y0 = l; 
+                    size_t y1 = l + h_divisors[j];
+                    size_t x0 = k;    
+                    size_t x1 = k + w_divisors[i];
+                    //std::cout << "x0 " << x0 << " x1 " << x1 << " y0 " << y0 << " y1 " << y1 << std::endl;
+                    Region reg(x0, x1, y0, y1);
+                    our_pool.submit([=] {render(w,h,samps,cam,cx,cy,c_ptr,reg); });
+                    }
+                }
+                our_pool.wait();
+                auto stop = std::chrono::steady_clock::now();
+                auto duration =  std::chrono::duration_cast<std::chrono::milliseconds>(stop-start).count();
+                results.push_back({duration, {w_divisors[i], h_divisors[j]}});
+                auto& lastResult = results.back();
+                std::cout << "Last Result: {" << lastResult.first << ", {" << lastResult.second.first << ", " << lastResult.second.second << "}}" << std::endl;
+                std::cout << "Iteration processed";
+                //our_pool.~thread_pool();
+            }
+        }
+        std::sort(results.begin(), results.end(), [](const std::pair<double, std::pair<int, int>>& a, const std::pair<double, std::pair<int, int>>& b) {
+                return a.first < b.first;
+            });
+        
+        std::cout << "Results ordered by time:\n";
+        for (const auto& result : results) {
+            std::cout << "Time: " << result.first
+                << ", Elements: (" << result.second.first << ", " << result.second.second << ")\n";
+        }*/
     }
-    // wait for completion
     auto stop = std::chrono::steady_clock::now();
-
-    std::cout << "Execution time: " <<
-      std::chrono::duration_cast<std::chrono::milliseconds>(stop-start).count() << " ms." << std::endl;
-
+    std::cout <<
+        //std::chrono::duration_cast<std::chrono::milliseconds>(stop-start).count() << " " << w_div << " " << h_div << " ms." << std::endl;
+    std::chrono::duration_cast<std::chrono::milliseconds>(stop-start).count() << ",";
+    // wait for completion
     write_output_file(c, w, h);
 }
