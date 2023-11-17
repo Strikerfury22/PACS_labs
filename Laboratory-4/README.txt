@@ -1,0 +1,4 @@
+The file "smallpt_thread_pool.cpp.old" is actually a functioning code main for the code. However, it's a variant that iterates through all the possible tiles the tasks can be divided into, plot the result times as each render is completed and after it's finished, it will show each pair of arguments with its corresponding time ordered starting from the fastest to the slowest. 
+In case the width or height of the image changes, it's easy to just change the fixed divisors and run it again to find out which will be the best entry arguments regarding the time consumed to render.
+
+The current file "smallpt_thread_pool.cpp" consists of the base solution that requires the user to enter the desired width and height divisor from the terminal.
