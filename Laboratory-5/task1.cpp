@@ -1,4 +1,3 @@
-#define cimg_use_jpeg
 #include "CImg.h"
 #include <iostream>
 using namespace cimg_library;
