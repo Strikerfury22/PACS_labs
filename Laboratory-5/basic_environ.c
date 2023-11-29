@@ -14,6 +14,9 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <ctime> // Medir programa entero
+#include <iomanip> //setprecision
+#include <iostream> //std::cout
 #ifdef __APPLE__
   #include <OpenCL/opencl.h>
 #else
@@ -56,6 +59,7 @@ int main(int argc, char** argv)
   cl_char params[50];
   size_t actual_value;
     
+  clock_t time = clock(); //Inicio de medición del programa
 
   // 1. Scan the available platforms:
   err = clGetPlatformIDs (num_platforms_ids, platforms_ids, &n_platforms);
@@ -64,9 +68,9 @@ int main(int argc, char** argv)
 
   for (int i = 0; i < n_platforms; i++ ){
 															 /***???         ???          ???***/
-    err= clGetPlatformInfo(platforms_ids[i], CL_PLATFORM_NAME, num_params, params, &actual_value);
+    err= clGetPlatformInfo(platforms_ids[i], CL_PLATFORM_NAME, sizeof(params), params, &actual_value);
     cl_error (err, "Error: Failed to get info of the platform\n");
-    printf( "\t[%d]-Platform Name: %s\n", i, str_buffer);
+    printf( "\t[%d]-Platform Name: %s\n", i, params);
   }
   printf("\n");
   // ***Task***: print on the screen the name, host_timer_resolution, vendor, versionm, ...
@@ -104,6 +108,7 @@ int main(int argc, char** argv)
   cl_error(err, "Failed to create a compute context\n");
 
   // 4. Create a command queue
+	//https://stackoverflow.com/questions/8849486/clock-in-opencl <-- Para profiling
   cl_command_queue_properties proprt[] = { CL_QUEUE_PROPERTIES, CL_QUEUE_PROFILING_ENABLE, 0 };
 													/***???                          ???***/
   command_queue = clCreateCommandQueueWithProperties( context, devices_ids[ePlatID][eDevID], proprt, &err);
@@ -154,7 +159,7 @@ int main(int argc, char** argv)
   //4.
     // Create a compute kernel with the program we want to run
 						  /***Todo              ???***/
-  cl_kernel kernel = clCreateKernel(program, "kernel_pow", &err);
+  cl_kernel kernel = clCreateKernel(program, "pow_of_two", &err);
   cl_error(err, "Failed to create kernel from the program\n");
 	
   //5.
@@ -162,20 +167,25 @@ int main(int argc, char** argv)
 	unsigned int count = 16;
 	float entrada[count] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15};
 	float salida[count];	
+	printf("5.Datos inicializados\n");
   //6.
     // Create OpenCL buffer visible to the OpenCl runtime
 																	    /***???***/
   cl_mem in_device_object  = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(float)*count, NULL, &err);
   cl_error(err, "Failed to create memory buffer at device\n");
+	printf("6-1.ReadBuffer\n");
 																	    /***???***/
   cl_mem out_device_object = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*count, NULL, &err);
   cl_error(err, "Failed to create memory buffer at device\n");
+	printf("6-2.WriteBuffer\n");
   
   //7.
     // Write date into the memory object 
+	cl_event host_dev_event; //medir tiempo de paso de memoria HOST->DEVICE
 																								/***???***/
-  err = clEnqueueWriteBuffer(command_queue, in_device_object, CL_TRUE, 0, sizeof(float) * count, entrada, 0, NULL, NULL);
+  err = clEnqueueWriteBuffer(command_queue, in_device_object, CL_TRUE, 0, sizeof(float) * count, entrada, 0, NULL, &host_dev_event);
   cl_error(err, "Failed to enqueue a write command\n");
+printf("7.Datos pasados\n");
   
   //8.
     // Set the arguments to the kernel
@@ -186,40 +196,87 @@ int main(int argc, char** argv)
 								/***???***/
   err = clSetKernelArg(kernel, 2, sizeof(unsigned int), &count);
   cl_error(err, "Failed to set argument 2\n");
+printf("8.Argumentos especificados\n");
   
   //9.
     // Launch Kernel
-  local_size = 128;
+  local_size = 128; //suponemos que 128 debe de ser mayor que el valor de CL_KERNEL_WORK_GROUP_SIZE  del dispositivo, por eso falla.
   global_size = count; /***<- ???***/
-							   /*** ???       ???***/
-  err = clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, &global_size, &local_size, 0, NULL, NULL);
+  cl_event kernel_event; //medir tiempo de kernel
+							   /*** ???       ???***/                  //&local_size
+  err = clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, &global_size, NULL, 0, NULL, &kernel_event);
   cl_error(err, "Failed to launch kernel to the device\n");
+printf("9.Kernel lanzado\n");
   
   //10.
+  cl_event dev_host_event; //medir tiempo de paso de memoria DEVICE->HOST
     // Read data form device memory back to host memory
 							/***???                   ???***/            /***???               ???***/
-  err = clEnqueueReadBuffer(command_queue, out_device_object, CL_TRUE, 0, sizeof(float)*count, salida, 0, NULL, NULL);
+  err = clEnqueueReadBuffer(command_queue, out_device_object, CL_TRUE, 0, sizeof(float)*count, &salida, 0, NULL, &dev_host_event);
   cl_error(err, "Failed to enqueue a read command\n");
   
   //11.
 	//Comprobamos corrección del algoritmo
   //std::cout << "----Comprobamos resultados----" << std::endl;
-  printf("----Comprobamos resultados----");
+  printf("----Comprobamos resultados----\n");
   for (int indice = 0; indice < count; indice++){
 	  float valor_correcto = entrada[indice] * entrada[indice];
 	  //std::cout << "Valor calculado: " << salida[indice] << " - Valor esperado: " << valor_correcto << std::endl;
-		printf("Valor calculado: %d - Valor esperado: %d.",salida[indice],valor_correcto);
+		printf("Valor calculado: %f - Valor esperado: %f\n",salida[indice],valor_correcto);
   }
-  printf("------------------------------");
+  printf("------------------------------\n");
+  time = clock() - time;
+  
+  //11.2
+	//Extraemos información de los eventos	-> https://stackoverflow.com/questions/8849486/clock-in-opencl
+  clFinish(command_queue);
+  cl_ulong ev_start_time=(cl_ulong)0;     
+  cl_ulong ev_end_time=(cl_ulong)0; 
+  //kernel_event  //Execution time of the kernel
+  err = clWaitForEvents(1, &kernel_event);
+  err |= clGetEventProfilingInfo(kernel_event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &ev_start_time, NULL);
+  err |= clGetEventProfilingInfo(kernel_event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &ev_end_time, NULL);
+  cl_error(err, "Failed to measure time from kernel_event\n");
+  std::cout << "Kernel's time of execution: " << ev_end_time - ev_start_time << " nanoseconds." << std::endl;
+  
+  //host_dev_event (H->D) y dev_host_event (D->H)  //Bandwith -> https://stackoverflow.com/questions/29196123/measuring-opencl-kernels-memory-throughput
+  std::cout << "Bytes transferred: " << sizeof(float) * count << std::endl;
+  cl_ulong host_dev_start_time=(cl_ulong)0;     
+  cl_ulong host_dev_end_time=(cl_ulong)0;
+  err = clWaitForEvents(1, &host_dev_event);
+  err |= clGetEventProfilingInfo(host_dev_event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &host_dev_start_time, NULL);
+  err |= clGetEventProfilingInfo(host_dev_event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &host_dev_end_time, NULL);
+  cl_error(err, "Failed to measure time from host_dev_event\n");
+  //std::cout << "host_dev_start_time: " << host_dev_start_time << std::endl;
+  //std::cout << "host_dev_end_time: " << host_dev_end_time << std::endl;
+  std::cout << "Bandwith of the Host->Device: " << static_cast<float>(sizeof(float) * count) / ((host_dev_end_time - host_dev_start_time)) << " Bytes/nanosecond." << std::endl;
+  
+  cl_ulong dev_host_start_time=(cl_ulong)0;     
+  cl_ulong dev_host_end_time=(cl_ulong)0;
+  err = clWaitForEvents(1, &dev_host_event);
+  err |= clGetEventProfilingInfo(dev_host_event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &dev_host_start_time, NULL);
+  err |= clGetEventProfilingInfo(dev_host_event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &dev_host_end_time, NULL);
+  cl_error(err, "Failed to measure time from dev_host_event\n");
+  //std::cout << "dev_host_Start_time: " << dev_host_start_time << std::endl;
+  //std::cout << "dev_host_end_time: " << dev_host_end_time << std::endl;
+																												// Dividir por 1000000000 hace que salga infinito
+  std::cout << "Bandwith of the Device->Host: " << static_cast<float>(sizeof(float) * count) / ((dev_host_end_time - dev_host_start_time)) << " Bytes/nanoseconds." << std::endl;
   
   //12.
 	//Liberamos la memoria usada /***Todo ???***/
+  clock_t time2 = clock();
   clReleaseMemObject(in_device_object);
   clReleaseMemObject(out_device_object);
   clReleaseProgram(program);
   clReleaseKernel(kernel);
   clReleaseCommandQueue(command_queue);
   clReleaseContext(context);
+
+  time = time + (clock() - time2); //Execution time of overall program -> ¿Usar time?
+  std::cout << "Total time of execution: " << std::fixed << std::setprecision(4)
+				<< ((float)time)/CLOCKS_PER_SEC << " seconds = " << ((float)time) * 1000000000/CLOCKS_PER_SEC << " nanoseconds" << std::endl;
+  
+  //Memory footprint -> https://stackoverflow.com/questions/131303/how-can-i-measure-the-actual-memory-usage-of-an-application-or-process
   
   return 0;
 }

@@ -2,7 +2,6 @@ __kernel void pow_of_two(
   __global float *in,
   __global float *out,
   const unsigned int count){
-
   int i = get_global_id(0); //Siempre debe ser cero
 
   if(i < count){
